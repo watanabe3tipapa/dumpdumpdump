@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="macOS で動く LLM / AI プロセスが消費するメモリをヒートマップで可視化する軽量ツール。モデル重み・KVキャッシュ・アクティベーションの居場所を一目で把握。">
+  <title>Memory Dump Visualizer — LLM プロセスのメモリを"見える化"</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .hero {
+      text-align: center;
+      padding: 64px 24px 40px;
+    }
+    .hero h1 {
+      font-size: 40px;
+      margin: 0 0 12px;
+      letter-spacing: -0.02em;
+    }
+    .hero h1 .grad {
+      background: linear-gradient(135deg, #4f8cff, #8b5cf6);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .hero p.lead {
+      font-size: 17px;
+      color: var(--text-dim);
+      max-width: 640px;
+      margin: 0 auto 28px;
+    }
+    .hero .cta {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .hero .badges {
+      margin-top: 20px;
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .demo {
+      max-width: 900px;
+      margin: 24px auto;
+    }
+    .demo iframe {
+      width: 100%;
+      height: 720px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg);
+    }
+    section.block {
+      padding: 40px 0;
+    }
+    section.block h2 {
+      font-size: 24px;
+      margin: 0 0 20px;
+    }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .features .card h3 {
+      margin: 0 0 6px;
+      font-size: 16px;
+    }
+    .features .card p {
+      margin: 0;
+      color: var(--text-dim);
+      font-size: 13.5px;
+    }
+    .steps {
+      counter-reset: step;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .steps .step {
+      position: relative;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 20px 20px 64px;
+    }
+    .steps .step::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 16px;
+      top: 20px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+    }
+    .steps .step h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+    .steps .step p {
+      color: var(--text-dim);
+      margin: 0 0 10px;
+    }
+    .tips {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .faq details {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 10px;
+      background: var(--panel);
+    }
+    .faq summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .faq p {
+      color: var(--text-dim);
+      margin: 8px 0 0;
+      font-size: 14px;
+    }
+    .note {
+      border-left: 3px solid var(--warn);
+      background: rgba(251, 191, 36, 0.08);
+      padding: 12px 16px;
+      border-radius: 0 8px 8px 0;
+      font-size: 14px;
+      color: var(--text-dim);
+    }
+    footer.nav {
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+      padding: 20px 24px;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="index.html">
+      <span class="dot"></span> Memory Dump Visualizer
+    </a>
+    <nav>
+      <a href="index.html">LP・チュートリアル</a>
+      <a href="viewer.html">ツール</a>
+    </nav>
+  </header>
+
+  <div class="hero">
+    <h1>LLM が食っているメモリ、<br>どこで食ってるか <span class="grad">見えてますか？</span></h1>
+    <p class="lead">
+      llama-server / ollama / python(torch) などバックエンドの AI プロセスをメモリダンプし、
+      モデル重み・KV キャッシュ・アクティベーションが実際にどこにどれだけ食っているか。
+      ブラウザだけで動く、超軽量のヒートマップ分析ツールです。
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="viewer.html">ツールを開く</a>
+      <a class="btn" href="#tutorial">チュートリアルを見る</a>
+    </div>
+    <div class="badges">
+      <span class="tag">ビルド不要</span>
+      <span class="tag">npm 不要</span>
+      <span class="tag">ブラウザ完結</span>
+      <span class="tag">Web Worker 高速計算</span>
+    </div>
+  </div>
+
+  <div class="demo card">
+    <h2 style="margin-top:0;">ライブデモ</h2>
+    <p style="color:var(--text-dim);margin-top:0;">「サンプル生成 (LLM)」を押すと、仮想的な llama プロセスのメモリ配置が描画されます。</p>
+    <iframe src="viewer.html" loading="lazy" title="Memory Dump Visualizer デモ"></iframe>
+  </div>
+
+  <main>
+    <section class="block">
+      <h2>何がわかるのか</h2>
+      <div class="features">
+        <div class="card">
+          <h3>ヒートマップで一望</h3>
+          <p>ダンプ全体を 4KB ページ単位のグリッドに分割。非ゼロ率・エントロピー・文字密度で「どこに実データがあるか」を色で瞬時に把握。</p>
+        </div>
+        <div class="card">
+          <h3>領域の重ね合わせ</h3>
+          <p>モデル重み / KV キャッシュ / アクティベーション / ヒープ等の領域を JSON で読み込み、半透明レイヤーとして重ねてどこが大きいか突き止めます。</p>
+        </div>
+        <div class="card">
+          <h3>推定利用量（MiB）</h3>
+          <p>各領域の実データ量を自動集計。どの領域が何 MiB 占めているかをリスト表示します。</p>
+        </div>
+        <div class="card">
+          <h3>丸ごと軽量</h3>
+          <p>依存は D3.js の CDN 1 本のみ。メトリック計算は Web Worker で実行し、大きなダンプでも UI が固まりません。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="tutorial">
+      <h2>チュートリアル</h2>
+      <div class="steps">
+        <div class="step">
+          <h3>対象の LLM / AI プロセスを確認する</h3>
+          <p>backend で稼働中のモデルサーバーや推論プロセスを見つけます。</p>
+          <pre>ps aux | grep -Ei 'llama|ollama|python|torch|token'
+
+# メモリ上の領域レイアウトを確認
+vmmap &lt;PID&gt;</pre>
+        </div>
+        <div class="step">
+          <h3>メモリをダンプする</h3>
+          <p>lldb で対象 PID にアタッチし、必要なアドレス範囲をバイナリとして書き出します。</p>
+          <pre>sudo lldb -p &lt;PID&gt; \
+  -o "memory read --force --binary --outfile dump.bin 0x100000000 0x140000000" \
+  -o detach -o quit</pre>
+          <p>ヘルパースクリプトも同梱しています（バイナリ + 領域 JSON を一度に生成）。</p>
+          <pre>sudo ./scripts/acquire_dump.sh -p &lt;PID&gt; -a 0x100000000 -s 0x4000000 \
+  -o dump.bin -j regions.json</pre>
+        </div>
+        <div class="step">
+          <h3>ブラウザで可視化・分析する</h3>
+          <p>
+            <a href="viewer.html">viewer.html</a> に <code>dump.bin</code> をアップロード。
+            メトリックを「エントロピー」に切り替えると、モデル重みのように高エントロピーな領域がくっきり浮かび上がります。
+            領域 JSON を読み込んで各領域の推定利用量（MiB）を確認しましょう。
+          </p>
+        </div>
+      </div>
+
+      <div class="note" style="margin-top:18px;">
+        <strong>ヒント</strong> — モデル重みは高エントロピー（全ビットがまばら）・トークナイザは文字密度が高い・
+        KV キャッシュは規則的なゼロ混じりの帯、という特徴が出ます。指標を切り替えると領域の特定がはかどります。
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>解析のヒント</h2>
+      <div class="tips">
+        <div class="card">
+          <h3>重み ≒ エントロピー大</h3>
+          <p>FP16/BF16 重みはほぼ全バイトが非ゼロで高エントロピー。ヒートマップの「肌色」の帯がモデル重みの可能性大。</p>
+        </div>
+        <div class="card">
+          <h3>KV キャッシュ ≒ 帯状のまだら</h3>
+          <p>ヘッダー長分の使われた領域とゼロ埋めが交互に出る。アクティベーションと同じレイヤー構造の繰り返しが見えます。</p>
+        </div>
+        <div class="card">
+          <h3>文字密度で vocab を探す</h3>
+          <p>トークナイザやプロンプトの文字列は ASCII 比率が高い。文字密度ビューで一発で可視化。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="block faq">
+      <h2>FAQ</h2>
+      <details>
+        <summary>SIP や権限が必要ですか？</summary>
+        <p>他プロセスのメモリを読むには <code>sudo</code> と（環境によって）SIP の制限への理解が必要です。ツール自体は取得後のバイナリをブラウザ内だけで処理します。</p>
+      </details>
+      <details>
+        <summary>ブラウザの外へデータは送信されますか？</summary>
+        <p>送信しません。すべての処理はローカルブラウザ内で完結します。ただしダンプにはパスワード・鍵・個人情報が含まれうるため、ファイルは外部にアップロードしないでください。</p>
+      </details>
+      <details>
+        <summary>対応サイズは？</summary>
+        <p>上限 256 MiB までアップロード可能。それ以上の領域は lldb で分割して取得してください。</p>
+      </details>
+      <details>
+        <summary>このページ/CDN がオフラインでも動く？</summary>
+        <p>D3.js を CDN から読み込むため、完全オフラインで使う場合は <code>d3.min.js</code> をローカルに置いて参照を差し替えてください。</p>
+      </details>
+    </section>
+
+    <section class="block">
+      <h2>GitHub Actions でデプロイ</h2>
+      <p style="color:var(--text-dim);">
+        <code>main</code> への push で <code>.github/workflows/deploy-pages.yml</code> が自動で
+        GitHub Pages へデプロイします。リポジトリ設定 → Pages → 「デプロイ元」を <b>GitHub Actions</b> に変更するだけです。
+        詳細は <a href="README.md">README.md</a> と <a href="DEV-MEMO.md">DEV-MEMO.md</a> を参照。
+      </p>
+    </section>
+  </main>
+
+  <footer class="nav">
+    Memory Dump Visualizer — watanabe3tipapa/dumpdumpdump ·
+    データはすべてブラウザ内で処理されます
+  </footer>
+</body>
+</html>

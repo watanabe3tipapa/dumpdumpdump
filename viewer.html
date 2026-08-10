@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Memory Dump Visualizer — LLM/AI プロセスのメモリ洗い出し</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="index.html">
+      <span class="dot"></span> Memory Dump Visualizer
+    </a>
+    <nav>
+      <a href="index.html">LP・チュートリアル</a>
+      <a href="viewer.html">ツール</a>
+    </nav>
+  </header>
+
+  <main>
+    <div class="toolbar">
+      <input type="file" id="fileInput" accept=".bin,.raw,.dmp,.dump" class="btn secondary">
+      <button id="sampleBtn" class="btn">サンプル生成 (LLM)</button>
+      <select id="metricSel" title="ページごとの指標">
+        <option value="nonzero" selected>非ゼロ率</option>
+        <option value="entropy">エントロピー</option>
+        <option value="string">文字密度</option>
+      </select>
+      <select id="colorSel" title="カラースケール">
+        <option value="viridis" selected>viridis</option>
+        <option value="inferno">inferno</option>
+        <option value="plasma">plasma</option>
+        <option value="turbo">turbo</option>
+        <option value="cividis">cividis</option>
+        <option value="heat">heat (RdYlBu)</option>
+      </select>
+      <span class="spacer"></span>
+      <span id="sourceLabel" class="status"></span>
+    </div>
+
+    <div class="statusbar">
+      <span id="fileInfo" class="status">データ未読込</span>
+      <span id="status" class="status"></span>
+      <span id="zoomInfo" class="status"></span>
+    </div>
+
+    <div class="rows">
+      <div>
+        <div id="heat" style="position:relative; overflow:hidden;">
+          <div id="zoomable" style="transform-origin:0 0;">
+            <canvas id="canvas" class="heatmap"></canvas>
+            <svg id="layerRegions" style="position:absolute;top:0;left:0;pointer-events:none;overflow:visible;"></svg>
+            <svg id="layerMarkers" style="position:absolute;top:0;left:0;overflow:visible;"></svg>
+          </div>
+        </div>
+
+        <div class="addressbar" style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;">
+          <label class="row-range">
+            base
+            <input id="baseInput" value="0x100000000" size="14">
+          </label>
+          <button id="applyBaseBtn" class="btn secondary">適用</button>
+          <label class="row-range">
+            アドレス検索
+            <input id="addrInput" placeholder="0x..." size="14">
+          </label>
+          <button id="searchBtn" class="btn secondary">検索</button>
+          <button id="selAddrBtn" class="btn secondary">選択アドレスにマーカー</button>
+        </div>
+
+        <div class="card inspector" id="inspector" style="display:none;margin-top:14px;">
+          <div class="head">
+            <h3>hex / ASCII インスペクタ</h3>
+            <code id="inspAddr"></code>
+          </div>
+          <div style="max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:8px;">
+            <div class="hexgrid" id="inspBody"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="side">
+        <div class="card">
+          <h3>レイヤー</h3>
+          <div class="layers">
+            <label class="check"><input type="checkbox" id="chkRegions" checked> 領域ハイライト</label>
+            <label class="row-range">不透明度 <input type="range" id="regOpacity" min="0" max="1" step="0.05" value="0.25"></label>
+            <label class="check"><input type="checkbox" id="chkMarkers" checked> マーカー</label>
+            <label class="row-range">不透明度 <input type="range" id="markOpacity" min="0" max="1" step="0.05" value="1"></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>領域JSON（推定利用量）</h3>
+          <div id="regList"></div>
+          <p id="regTotal" style="margin:8px 0 0;font-size:12px;color:var(--text-dim);"></p>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+            <input type="file" id="regFile" accept=".json" class="btn secondary">
+            <button id="clearRegionsBtn" class="btn secondary">クリア</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>マーカー</h3>
+          <div id="markList"></div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+            <input type="file" id="markFile" accept=".json" class="btn secondary">
+            <button id="clearMarkersBtn" class="btn secondary">クリア</button>
+          </div>
+          <p style="font-size:12px;color:var(--text-dim);margin-top:8px;">ダブルクリックでページにマーカー追加</p>
+        </div>
+
+        <div class="card">
+          <h3>カラーバー</h3>
+          <canvas id="legend" width="300" height="14" style="display:block;max-width:100%;border-radius:4px;"></canvas>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="sample.js"></script>
+  <script src="viewer.js"></script>
+</body>
+</html>
