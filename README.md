@@ -49,6 +49,9 @@ sudo ./scripts/acquire_dump.sh -p <PID> -a 0x100000000 -s 0x10000 \
 ```bash
 python3 -m http.server 8000
 # → http://localhost:8000
+
+# テスト実行（Node のみ・依存なし）
+node tests/run-tests.mjs
 ```
 
 ## デプロイ（GitHub Pages + Actions）

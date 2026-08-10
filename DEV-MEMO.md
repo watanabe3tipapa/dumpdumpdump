@@ -155,3 +155,8 @@ actions/checkout 等が Node.js 20 から 24 へ自動移行される旨の非�
 - カセットデッキ調表示を実装（上記 v2 追加参照）
 - 検証: Node ハーネスによりモデル重み領域 bbox（width=1024, height=256, x=0, opacity=0.25）を
   数値一致で PASS。deckMode での renderAll/drawLegend 例外なし。LEVEL メーター 12 セグ中 10 点灯(0.85) PASS
+- テストスイート新設: tests/run-tests.mjs（Node のみ・依存なし）
+  - 実行: node tests/run-tests.mjs → 16 passed / 0 failed
+  - 対象: worker 計算（非ゼロ率/エントロピー/部分ページ）、sample 構成、viewer ロジック
+    （ロード→メトリック、多行/単一行領域bbox、範囲外領域、デッキモード、LEVEL メーター、
+    JSON パーサ正常/異常系、アドレスパーサ、領域利用量推定、sync と worker の一致）
