@@ -128,3 +128,14 @@ GitHub Pages に LP（兼チュートリアル）として公開。
   - init() の buildColorLUT 参照バグを検出・修正（buildLUT に統一）
   - bash -n / node --check / ローカル http.server で全リソース 200 確認
 - 2026-08-10: git 初期化・コミット・push、GitHub Actions デプロイ確認
+- 2026-08-10: PLAN.md を削除（設計は本メモの「ファイル構成」「ツール本体の仕様」等に集約）。README 等の参照も DEV-MEMO.md のみに整理。
+- 2026-08-10: GitHub Pages 公開確認
+  - リポジトリ: watanabe3tipapa/dumpdumpdump (public, main)
+  - Pages ソース: GitHub Actions (build_type=workflow)
+  - 公開: https://watanabe3tipapa.github.io/dumpdumpdump/
+  - LP / viewer / css / js / worker / sample すべて 200 応答を確認
+
+## 備考（GitHub Actions のノード警告）
+
+actions/checkout 等が Node.js 20 から 24 へ自動移行される旨の非推奨アノテーションがあるが、
+デプロイ自体は成功している。影響が出た場合は各 action を最新メジャーバージョンへ更新すること。
