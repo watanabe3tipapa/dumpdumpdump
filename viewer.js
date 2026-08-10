@@ -18,7 +18,35 @@ const state = {
   markers: [],
   selectedAddr: null,
   transform: d3.zoomIdentity,
+  deckMode: false,
 };
+
+const VU_COLORS = [
+  [22, 197, 94],
+  [74, 222, 128],
+  [132, 204, 22],
+  [163, 230, 53],
+  [250, 204, 21],
+  [251, 191, 36],
+  [251, 146, 60],
+  [249, 115, 22],
+  [239, 68, 68],
+  [220, 38, 38],
+];
+const VU_SEGMENTS = 12;
+
+function vuLevel(level) {
+  return Math.min(9, Math.max(0, Math.floor(level * 10)));
+}
+
+function vuColor(level) {
+  return VU_COLORS[vuLevel(level)];
+}
+
+function vuCss(level) {
+  const c = vuColor(level);
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
 
 let worker = null;
 try {
@@ -53,11 +81,34 @@ if (worker) {
 }
 
 function init() {
+  buildLevelMeter();
   buildLUT();
   drawLegend();
   bindZoom();
   bindEvents();
   configureDefaults();
+}
+
+function buildLevelMeter() {
+  const meter = $("levelMeter");
+  meter.innerHTML = "";
+  for (let i = 0; i < VU_SEGMENTS; i++) {
+    const seg = document.createElement("span");
+    seg.className = "seg";
+    meter.appendChild(seg);
+  }
+  updateLevelMeter(0);
+  updateTape("0x00000000");
+}
+
+function updateLevelMeter(v) {
+  const n = Math.max(0, Math.min(VU_SEGMENTS, Math.round((v || 0) * VU_SEGMENTS)));
+  const segs = $("levelMeter").children;
+  for (let i = 0; i < segs.length; i++) segs[i].classList.toggle("on", i < n);
+}
+
+function updateTape(text) {
+  $("tapeCounter").textContent = text;
 }
 
 function configureDefaults() {
@@ -162,6 +213,13 @@ function drawLegend() {
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d");
+  if (state.deckMode) {
+    for (let x = 0; x < w; x++) {
+      ctx.fillStyle = vuCss(x / (w - 1));
+      ctx.fillRect(x, 0, 1, h);
+    }
+    return;
+  }
   const scale = colorScales[state.colorName].domain([0, 1]);
   for (let x = 0; x < w; x++) {
     ctx.fillStyle = scale(x / (w - 1));
@@ -184,8 +242,8 @@ function renderAll() {
 
   for (let i = 0; i < state.pages; i++) {
     const v = state.values[i];
-    const idx = Math.min(255, Math.floor(Math.pow(v, 0.55) * 255));
-    const c = colorLUT[idx];
+    const level = Math.pow(v, 0.55);
+    const c = state.deckMode ? vuColor(level) : colorLUT[Math.min(255, Math.floor(level * 255))];
     const off = i * 4;
     px[off] = c[0];
     px[off + 1] = c[1];
@@ -199,8 +257,30 @@ function renderAll() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(img, 0, 0, COLS * CELL, rows * CELL);
 
+  if (state.deckMode) drawDeckOverlay(ctx, rows);
+
   updateFileInfo();
   renderLayers();
+}
+
+function drawDeckOverlay(ctx, rows) {
+  ctx.fillStyle = "#0b0d12";
+  for (let x = CELL; x <= COLS * CELL; x += CELL) {
+    ctx.fillRect(x - 1, 0, 1, ctx.canvas.height);
+  }
+  for (let y = CELL; y <= rows * CELL; y += CELL) {
+    ctx.fillRect(0, y - 1, ctx.canvas.width, 1);
+  }
+  ctx.fillStyle = "#ffe08a";
+  for (let r = 0; r < rows; r++) {
+    let best = -1, bc = 0;
+    for (let c = 0; c < COLS; c++) {
+      const pg = r * COLS + c;
+      if (pg >= state.pages) break;
+      if (state.values[pg] > best) { best = state.values[pg]; bc = c; }
+    }
+    ctx.fillRect(bc * CELL, r * CELL, CELL, 2);
+  }
 }
 
 function pageToXY(page) {
@@ -228,20 +308,30 @@ function renderRegionsLayer() {
     const p0 = Math.max(0, Math.floor((r.start - state.base) / PAGE_SIZE));
     const p1 = Math.min(state.pages, Math.ceil((r.end - state.base) / PAGE_SIZE));
     if (p0 >= p1) continue;
-    const ax = (p0 % COLS) * CELL;
-    const ay = Math.floor(p0 / COLS) * CELL;
-    const bx = ((p1 - 1) % COLS + 1) * CELL;
-    const by = Math.floor((p1 - 1) / COLS + 1) * CELL;
+
+    const row0 = Math.floor(p0 / COLS);
+    const row1 = Math.floor((p1 - 1) / COLS);
+    let x, width;
+    if (row0 === row1) {
+      x = (p0 % COLS) * CELL;
+      width = ((p1 - 1) % COLS + 1 - (p0 % COLS)) * CELL;
+    } else {
+      x = 0;
+      width = COLS * CELL;
+    }
+    const y = row0 * CELL;
+    const height = (row1 - row0 + 1) * CELL;
 
     const svgns = "http://www.w3.org/2000/svg";
     const rect = document.createElementNS(svgns, "rect");
-    rect.setAttribute("x", Math.min(ax, bx));
-    rect.setAttribute("y", ay);
-    rect.setAttribute("width", Math.abs(bx - ax));
-    rect.setAttribute("height", by - ay);
+    rect.setAttribute("x", x);
+    rect.setAttribute("y", y);
+    rect.setAttribute("width", width);
+    rect.setAttribute("height", height);
     rect.setAttribute("fill", r.color);
-    rect.setAttribute("fill-opacity", 0.22);
+    rect.setAttribute("fill-opacity", opacity);
     rect.setAttribute("stroke", r.color);
+    rect.setAttribute("stroke-opacity", Math.min(1, opacity * 2));
     rect.setAttribute("stroke-width", 1);
     rect.setAttribute("class", "region");
     $("layerRegions").appendChild(rect);
@@ -252,6 +342,7 @@ function renderMarkersLayer() {
   $("layerMarkers").innerHTML = "";
   $("layerMarkers").setAttribute("viewBox", `0 0 ${COLS * CELL} ${pageInfo().rows * CELL}`);
   if (!$("chkMarkers").checked) return;
+  const opacity = Number($("markOpacity").value);
 
   const svgns = "http://www.w3.org/2000/svg";
   for (const m of state.markers) {
@@ -262,6 +353,7 @@ function renderMarkersLayer() {
     const cy = y + CELL / 2;
 
     const g = document.createElementNS(svgns, "g");
+    g.setAttribute("opacity", opacity);
     const circle = document.createElementNS(svgns, "circle");
     circle.setAttribute("cx", cx);
     circle.setAttribute("cy", cy);
@@ -457,6 +549,14 @@ function bindEvents() {
     drawLegend();
   });
 
+  $("deckToggle").addEventListener("change", (ev) => {
+    state.deckMode = ev.target.checked;
+    $("deckPanel").style.display = state.deckMode ? "" : "none";
+    $("deckLamp").classList.toggle("on", state.deckMode);
+    drawLegend();
+    if (state.values) renderAll();
+  });
+
   $("applyBaseBtn").addEventListener("click", () => {
     const base = parseBase();
     if (base === null) return;
@@ -468,6 +568,12 @@ function bindEvents() {
   canvas.addEventListener("mousemove", (ev) => {
     const page = canvasToPage(ev);
     showPageTooltip(ev, page);
+    if (page >= 0) {
+      updateLevelMeter(state.values[page]);
+      updateTape("0x" + (state.base + page * PAGE_SIZE).toString(16).padStart(8, "0"));
+    } else {
+      updateLevelMeter(0);
+    }
   });
   canvas.addEventListener("mouseout", () => hideTooltip());
   canvas.addEventListener("click", (ev) => {
@@ -569,6 +675,7 @@ function parseAddr(s) {
 function inspectPage(page) {
   const addr = state.base + page * PAGE_SIZE;
   state.selectedAddr = addr;
+  updateTape("0x" + addr.toString(16).padStart(8, "0"));
   $("#inspAddr").textContent = `0x${addr.toString(16)}  (File offset 0x${(page * PAGE_SIZE).toString(16)})`;
 
   const grid = $("inspBody");

@@ -34,8 +34,22 @@
         <option value="cividis">cividis</option>
         <option value="heat">heat (RdYlBu)</option>
       </select>
+      <label class="check"><input type="checkbox" id="deckToggle"> 1980's カセットデッキ調</label>
       <span class="spacer"></span>
       <span id="sourceLabel" class="status"></span>
+    </div>
+
+    <div class="deck-panel" id="deckPanel" style="display:none;">
+      <div class="deck-lcd">
+        <span class="lbl">TAPE COUNTER</span>
+        <span class="lcd" id="tapeCounter">0x00000000</span>
+      </div>
+      <div class="deck-meter">
+        <span class="lbl">LEVEL</span>
+        <div id="levelMeter"></div>
+        <span class="lbl">PEAK&nbsp;&nbsp;MAX▲</span>
+      </div>
+      <span class="deck-lamp" id="deckLamp"></span>
     </div>
 
     <div class="statusbar">
